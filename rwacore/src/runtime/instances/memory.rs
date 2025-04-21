@@ -6,6 +6,10 @@ use crate::{
 };
 
 /// WebAssembly memory instance.
+///
+/// Internally this structure uses `alloc::vec::Vec` which means
+/// that to start using in binary crates [`#[global_allocator]`](https://doc.rust-lang.org/stable/alloc/alloc/trait.GlobalAlloc.html)
+/// must be defined.
 #[derive(Debug)]
 pub struct MemoryInst {
     m_type: MemType,
@@ -20,6 +24,9 @@ impl MemoryInst {
     /// Creates new memory instance.
     /// It allocates memory provided as `min` value of `MemType`.
     ///
+    /// System limit is typical provided as a virtual machine configuration
+    /// and is common for all WASM module instances.
+    ///
     /// It may return `Trap::MemoryExceededSytemLimit` if `min` exceeds
     /// `system_limit_max`.
     pub fn new(m_type: MemType, system_limit_max: usize) -> RResult<Self> {
@@ -28,23 +35,25 @@ impl MemoryInst {
         }
 
         let capacity = m_type.0.min as usize;
+        let mut data = Vec::with_capacity(capacity);
+        data.resize(capacity, 0);
 
         Ok(MemoryInst {
             m_type,
-            data: Vec::with_capacity(capacity),
+            data,
             system_limit_max,
         })
     }
 
-    /// Allocates `np` memory pages (65,536 bytes) more for the current Memory Instance.
+    /// Allocates `np` memory pages (65,536 bytes each) more for the current Memory Instance.
     ///
     /// Method may return `Trap::MemoryExceededSytemLimit` if the requested memory combined
-    /// with already allocated memory will exceed `system_limit_max` that was used during
-    /// current Memory Instance creation.
+    /// with already allocated memory will exceed `system_limit_max that was used during
+    /// current Memory Instance creation or it will exceed `max` from the `m_type` if it contains
+    /// one.
     pub fn allocate(&mut self, np: usize) -> RResult<()> {
         let bytes_to_allocate = np * Self::PAGE_SIZE;
-        let current_capacity = self.data.capacity();
-        let new_capacity = current_capacity + bytes_to_allocate;
+        let new_capacity = self.data.len() + bytes_to_allocate;
 
         if new_capacity > self.system_limit_max
             || (self.m_type.0.max.is_some() && new_capacity > self.m_type.0.max.unwrap() as usize)
@@ -52,7 +61,7 @@ impl MemoryInst {
             return Err(Trap::MemoryExceededSytemLimit);
         }
 
-        self.data.reserve_exact(bytes_to_allocate);
+        self.data.resize(new_capacity, 0);
 
         Ok(())
     }
@@ -97,6 +106,11 @@ impl MemoryInst {
 
         Ok(bytes_to_read)
     }
+
+    /// Returns Memory instance capacity.
+    pub fn capacity(&self) -> usize {
+        self.data.len()
+    }
 }
 
 #[cfg(test)]
@@ -108,23 +122,99 @@ mod test {
 
     #[test]
     fn test_new() {
-        let m_type = MemType(LimitsType {
-            min: 1,
-            max: Some(100),
-        });
-        let system_limit_max = 4 * 1024;
-        let inst_res = MemoryInst::new(m_type, system_limit_max);
-        assert!(inst_res.is_ok(), "should create MemoryInst");
-        let m_type = MemType(LimitsType {
-            min: system_limit_max as u32 + 1,
+        let min = 1;
+        let mem_type = MemType(LimitsType { min, max: None });
+        let system_limit_max = 10;
+        let mem_inst_res = MemoryInst::new(mem_type, system_limit_max);
+        assert!(
+            mem_inst_res.is_ok(),
+            "should create MemoryInst without errors"
+        );
+        assert_eq!(mem_inst_res.unwrap().data.capacity(), min as usize);
+
+        let system_limit_max = 10;
+        let mem_type = MemType(LimitsType {
+            min: system_limit_max + 1,
             max: None,
         });
-        let inst_res = MemoryInst::new(m_type, system_limit_max);
-        assert_eq!(inst_res.unwrap_err(), Trap::MemoryExceededSytemLimit);
+        let mem_inst_res = MemoryInst::new(mem_type, system_limit_max as usize);
+        assert_eq!(
+            mem_inst_res.expect_err("should return error if min > system_limit_max"),
+            Trap::MemoryExceededSytemLimit
+        );
     }
 
     #[test]
-    fn test_write_ok() {}
+    fn test_allocate() {
+        // bellow system_limit_max and max None
+        let mem_type = MemType(LimitsType {
+            min: MemoryInst::PAGE_SIZE as u32,
+            max: None,
+        });
+        let system_limit_max = MemoryInst::PAGE_SIZE * 2;
+        let mut mem_inst = MemoryInst::new(mem_type, system_limit_max)
+            .expect("shuld create memory without errors");
+        mem_inst.allocate(1).expect("should allocate 1 memory page without errors when capacity is bellow system_limit_max and MemType max");
+        // above system limit
+        mem_inst
+            .allocate(1)
+            .expect_err("should return error when goes above system_limit_max");
 
-    fn test_write_trap() {}
+        // above max Some (system_limit_max > max)
+        let mem_type = MemType(LimitsType {
+            min: MemoryInst::PAGE_SIZE as u32,
+            max: Some(MemoryInst::PAGE_SIZE as u32 * 2),
+        });
+        let system_limit_max = MemoryInst::PAGE_SIZE * 3;
+        let mut mem_inst = MemoryInst::new(mem_type, system_limit_max)
+            .expect("shuld create memory without errors");
+        mem_inst
+            .allocate(2)
+            .expect_err("should return error when capacity goes above MemType max value");
+    }
+
+    #[test]
+    fn test_write() {
+        let mem_type = MemType(LimitsType { min: 10, max: None });
+        let system_limit_max = MemoryInst::PAGE_SIZE * 2;
+        let mut mem_inst = MemoryInst::new(mem_type, system_limit_max)
+            .expect("shuld create memory without errors");
+
+        let to_write = [2u8; 5];
+        mem_inst
+            .write(&to_write, 0)
+            .expect("should write data without error when there is enough capacity");
+        assert_eq!(
+            to_write,
+            mem_inst.data[0..to_write.len()],
+            "memory should have data written"
+        );
+
+        mem_inst.write(&to_write, 8).expect_err(
+            "should return error when there is not enough remaining capacity to write data",
+        );
+    }
+
+    #[test]
+    fn test_read() {
+        let mem_type = MemType(LimitsType { min: 10, max: Some(10) });
+        let system_limit_max = MemoryInst::PAGE_SIZE * 2;
+        let mut mem_inst = MemoryInst::new(mem_type, system_limit_max)
+            .expect("shuld create memory without errors");
+
+        let to_write = [2u8; 5];
+        mem_inst
+            .write(&to_write, 5)
+            .expect("should write data without error when there is enough capacity");
+
+        // written bytes is less then the read buffer capacity
+        let mut to_read = [0u8; 6];
+        assert_eq!(mem_inst.read(&mut to_read, 5).expect("should read without errors"), 5);
+        assert_eq!([2u8, 2u8, 2u8, 2u8, 2u8, 0u8], to_read);
+
+        // written bytes is same as the read buffer capacity
+        let mut to_read = [0u8; 2];
+        assert_eq!(mem_inst.read(&mut to_read, 5).expect("should read without errors"), 2);
+        assert_eq!([2u8, 2u8], to_read);
+    }
 }
