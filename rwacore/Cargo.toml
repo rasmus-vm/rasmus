@@ -1,0 +1,10 @@
+[package]
+name = "rwacore"
+description = "RasmsVM WebAssebly Core"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "rwacore"
+
+[dependencies]

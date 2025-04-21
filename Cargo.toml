@@ -1,5 +1,9 @@
 [workspace]
+resolver = "2"
 
 members = [
-  "rasmus",
+  "rvm",
+  "rvmi",
+  "rwa",
+  "rwacore",
 ]

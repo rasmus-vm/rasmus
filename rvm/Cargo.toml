@@ -1,0 +1,7 @@
+[package]
+name = "rvm"
+version = "0.1.0"
+description = "Rasms Virtual Machine"
+edition = "2024"
+
+[dependencies]
