@@ -9,7 +9,7 @@ pub fn exec_instr(
     instr: &Instr,
     store: &mut Store,
     stack: &mut Stack,
-    module: &ModuleInst,
+    maybe_module: Option<&ModuleInst>
 ) -> RResult<()> {
     todo!()
 }

@@ -1,4 +1,6 @@
 //! Rasmus `Trap` and `Result`.
+
+use crate::types::RType;
 pub type RResult<T> = Result<T, Trap>;
 
 /// Rasmus Trap enum.
@@ -20,4 +22,10 @@ pub enum Trap {
     MemoryExceededSytemLimit,
     /// Not enough free memory to write to a Memory.
     NotEnoughMemory,
+    /// Current Frame was not found during an instruction execution.
+    CurrentFrameNotFound,
+    /// Unable to find memory address by its index in the Module instance.
+    MemoryNotFound,
+    /// Unexpected stack entity. Expected entity type is provided.
+    UnexpectedStackEntity(RType)
 }

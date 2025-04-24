@@ -5,6 +5,11 @@
 
 use crate::types::RType;
 
+/// Bytes length of 32-bit numerical type values (`I32`, `F32`).
+pub const N32_BYTES_LEN: usize = 32/8;
+/// Bytes length of 64-bit numerical type values (`I64`, `F64`).
+pub const N64_BYTES_LEN: usize = 64/8;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Value {
     /// Unsigned 32-bit integer.
@@ -44,6 +49,7 @@ pub enum Value {
 
 /// An external value is the runtime representation of an
 /// entity that can be imported or exported.
+#[derive(Debug)]
 pub enum ExternValue {
     /// funcaddr
     Func(usize),

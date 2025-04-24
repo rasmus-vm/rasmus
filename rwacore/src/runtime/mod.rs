@@ -7,4 +7,7 @@ pub mod stack;
 pub mod store;
 pub mod instances;
 
+mod frame;
+
+pub use frame::*;
 pub use exec_res::*;

@@ -57,7 +57,7 @@ impl Callable for LocalFunc {
         }
         // execute code instructions list
         for instr in self.code.instructions() {
-            exec_instr(&instr, store, stack, maybe_module.unwrap())?;
+            exec_instr(&instr, store, stack, maybe_module)?;
         }
         todo!()
     }
@@ -101,46 +101,42 @@ mod test {
     use super::FuncInst;
     use crate::runtime::instances::ModuleInst;
     use crate::runtime::stack::Stack;
-    use crate::runtime::stack::StackEntity;
     use crate::runtime::store::Store;
     use crate::runtime::trap::RResult;
-    use crate::runtime::values::Value;
     use crate::types::FuncType;
     use crate::types::ResType;
-    use std::println;
+    use core::cell::RefCell;
+    use std::sync::Arc;
 
-    struct HostLogU32 {}
-
-    impl Callable for HostLogU32 {
-        fn call(
-            &self,
-            _store: &mut Store,
-            stack: &mut Stack,
-            _maybe_module: Option<&ModuleInst>,
-        ) -> RResult<()> {
-            println!("even logs");
-            stack
-                .push(StackEntity::Val(Value::U32(256)))
-                .expect("should push to stack (test)");
-            Ok(())
-        }
-    }
 
     #[test]
     fn test_host_func() {
+        let indicator = Arc::new(RefCell::new(false));
+        struct HostFunc {called: Arc<RefCell<bool>>}
+
+        impl Callable for HostFunc {
+            fn call(
+                &self,
+                _store: &mut Store,
+                _stack: &mut Stack,
+                _maybe_module: Option<&ModuleInst>,
+            ) -> RResult<()> {
+                *self.called.borrow_mut() = true;
+                Ok(())
+            }
+        }
         let host_f = FuncInst::Host(super::HostFunc {
             f_type: FuncType {
                 args: ResType(vec![]),
                 ret: ResType(vec![]),
             },
-            host_code: Box::new(HostLogU32 {}),
+            host_code: Box::new(HostFunc {called: indicator.clone() }),
         });
-
-        let mut stack = Stack::new(4).expect("should create stack (test)");
+        let mut stack = Stack::new(1).unwrap();
         let mut store = Store::empty();
 
+        assert_eq!(*indicator.borrow_mut(), false, "pre-check failed");
         host_f.call(&mut store, &mut stack, None).unwrap();
-
-        assert_eq!(stack.dump(), vec![StackEntity::Val(Value::U32(256))]);
+        assert_eq!(*indicator.borrow_mut(), true, "should execute host function");
     }
 }

@@ -26,6 +26,7 @@ pub struct Store {
 
 impl Store {
     /// Creates empty store.
+    #[inline]
     pub fn empty() -> Store {
         Store {
             funcs: Vec::new(),
@@ -37,7 +38,22 @@ impl Store {
         }
     }
     /// Returns `Option` with a reference to a function by its function space address `addr`.
+    #[inline]
     pub fn get_func(&self, addr: usize) -> Option<&FuncInst> {
         self.funcs.get(addr)
+    }
+
+    /// Returns mutable reference to a `MemoryInst` by its memaddress.
+    #[inline]
+    pub fn get_memory_mut(&mut self, memaddr: usize) -> Option<&mut MemoryInst> {
+        self.mems.get_mut(memaddr)
+    }
+
+    /// Pushes provided memory instance to the Store and returns memory address
+    /// that should be used to access this memory instance.
+    #[inline]
+    pub fn add_memory(&mut self, memory_inst: MemoryInst) -> usize {
+        self.mems.push(memory_inst);
+        self.mems.len() - 1
     }
 }
