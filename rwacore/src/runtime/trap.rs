@@ -26,6 +26,8 @@ pub enum Trap {
     CurrentFrameNotFound,
     /// Unable to find memory address by its index in the Module instance.
     MemoryNotFound,
+    /// Value update out of type range.
+    ValueOverflow,
     /// Unexpected stack entity. Expected entity type is provided.
     UnexpectedStackEntity(RType)
 }

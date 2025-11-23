@@ -1,6 +1,6 @@
 //! Virtual Stack.
 
-use crate::{instructions::Instr, types::RType};
+use crate::{instructions::Instr, types::{NumType, RType}};
 
 use super::{
     Frame,

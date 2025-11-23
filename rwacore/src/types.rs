@@ -22,6 +22,14 @@ pub enum RType {
     ExternRef,
 }
 
+/// Webassembly [number type](https://webassembly.github.io/spec/core/syntax/types.html#syntax-numtype).
+pub enum NumType {
+    I32,
+    I64,
+    F32,
+    F64
+}
+
 /// Type that classifies the result of function or instruction execution.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResType(pub Vec<RType>);
